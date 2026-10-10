@@ -1,0 +1,42 @@
+### DATA ###
+# Ignore processed data and databases
+/data/processed/*
+/data/db/*
+
+# Preserve raw data structure but ignore files
+/data/raw/*.xlsx
+/data/raw/*.csv
+
+### ENVIRONMENT ###
+.venv/
+env/
+venv/
+.env
+environment.yml
+
+### PYTHON ###
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+### NOTEBOOKS ###
+.ipynb_checkpoints/
+
+### IDE ###
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+
+### SYSTEM ###
+*.log
+*.lock
+.DS_Store
+
+### SENSITIVE ###
+kaggle.json
+*.key
+*.pem
+secrets.ini

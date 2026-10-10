@@ -1,0 +1,7 @@
+pandas
+openpyxl
+sqlalchemy
+jupyter
+matplotlib
+seaborn
+kagglehub
