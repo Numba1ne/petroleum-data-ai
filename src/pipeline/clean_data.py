@@ -325,19 +325,38 @@ def clean_monthly(raw: pd.DataFrame, qr: QualityReport) -> pd.DataFrame:
     df = raw.copy()
     df = _standardise_columns(df)
 
-    # Date – monthly data often uses a date or period column
-    date_col = next(
-        (c for c in df.columns if "date" in c or "period" in c or "month" in c),
+    # The monthly sheet has a rogue row 0 that contains unit labels (Sm3, hrs, etc.)
+    # Drop any row where the wellbore name column is NaN (unit header rows).
+    wellbore_col = next(
+        (c for c in df.columns if "wellbore" in c or "well_bore" in c or "well" in c),
         None,
     )
-    if date_col:
-        df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-        df = df.sort_values([c for c in ["well_bore_code", date_col] if c in df.columns])
+    if wellbore_col:
+        df = df[df[wellbore_col].notna()].copy()
 
-    # Negative volumes
-    vol_cols_present = [c for c in
-        ["bore_oil_vol", "bore_gas_vol", "bore_wat_vol", "bore_wi_vol"]
-        if c in df.columns]
+    # Coerce all columns that should be numeric
+    numeric_candidates = [c for c in df.columns
+                          if c not in (wellbore_col or "", "npd_facility_name", "flow_kind")]
+    for col in numeric_candidates:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Build a proper date from Year + Month integer columns (no single date col exists)
+    if "year" in df.columns and "month" in df.columns:
+        df["date"] = pd.to_datetime(
+            df["year"].astype(int).astype(str) + "-"
+            + df["month"].astype(int).astype(str) + "-01",
+            errors="coerce",
+        )
+
+    # Sort
+    sort_cols = [c for c in [wellbore_col, "date"] if c and c in df.columns]
+    if sort_cols:
+        df = df.sort_values(sort_cols)
+
+    # Negative volumes (column names may differ from daily — use actual names)
+    vol_cols_present = [c for c in df.columns
+                        if any(v in c for v in ["oil", "gas", "wat", "water", "wi"])
+                        and df[c].dtype in [float, "float64"]]
     df, neg_counts = _clamp_negative_volumes(df, vol_cols_present)
 
     df = df.reset_index(drop=True)
@@ -374,20 +393,20 @@ def save_outputs(
     # CSV + Parquet
     daily.to_csv(DAILY_CSV, index=False)
     daily.to_parquet(DAILY_PARQUET, index=False)
-    log.info("Daily CSV     → %s", DAILY_CSV)
-    log.info("Daily Parquet → %s", DAILY_PARQUET)
+    log.info("Daily CSV     -> %s", DAILY_CSV)
+    log.info("Daily Parquet -> %s", DAILY_PARQUET)
 
     monthly.to_csv(MONTHLY_CSV, index=False)
     monthly.to_parquet(MONTHLY_PARQUET, index=False)
-    log.info("Monthly CSV     → %s", MONTHLY_CSV)
-    log.info("Monthly Parquet → %s", MONTHLY_PARQUET)
+    log.info("Monthly CSV     -> %s", MONTHLY_CSV)
+    log.info("Monthly Parquet -> %s", MONTHLY_PARQUET)
 
     # SQLite
     engine = create_engine(f"sqlite:///{DB_PATH}")
     with engine.begin() as conn:
         daily.to_sql("daily_production", conn, if_exists="replace", index=False)
         monthly.to_sql("monthly_production", conn, if_exists="replace", index=False)
-    log.info("Database → %s", DB_PATH)
+    log.info("Database -> %s", DB_PATH)
 
     # Quality report
     qr.write(QUALITY_REPORT_PATH)
@@ -408,7 +427,7 @@ def main(raw_path: Path | None = None) -> None:
 
     save_outputs(daily_clean, monthly_clean, qr)
 
-    log.info("Pipeline complete ✓")
+    log.info("Pipeline complete [OK]")
     log.info("  Daily:   %d rows", len(daily_clean))
     log.info("  Monthly: %d rows", len(monthly_clean))
     log.info("  DB:      %s", DB_PATH)

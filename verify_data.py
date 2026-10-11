@@ -35,7 +35,7 @@ CHECKS = [
 passed = 0
 failed = 0
 
-print("\n── Volve Pipeline Verification ─────────────────────────────────────")
+print("\n================== Volve Pipeline Verification ==================")
 for label, path in CHECKS:
     if path.exists():
         size_kb = path.stat().st_size / 1024
@@ -59,7 +59,7 @@ if DB_PATH.exists():
         print(f"\n  [WARNING] Could not query DB: {exc}")
 
 print(f"\n  Result: {passed} passed, {failed} failed")
-print("────────────────────────────────────────────────────────────────────\n")
+print("=================================================================\n")
 
 if failed:
     sys.exit(1)

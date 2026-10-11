@@ -15,7 +15,7 @@ We follow the [Python Community Code of Conduct](https://www.python.org/psf/code
    - The problem it solves
    - Implementation considerations
 
-3. **Fix Issues** - Check the [good first issues](https://github.com/your-username/petroleum-data-ai/labels/good%20first%20issue) label
+3. **Fix Issues** - Check the [good first issues](https://github.com/Numba1ne/petroleum-data-ai/labels/good%20first%20issue) label
 
 4. **Improve Documentation** - Update READMEs or docstrings
 
@@ -23,7 +23,7 @@ We follow the [Python Community Code of Conduct](https://www.python.org/psf/code
 1. **Setup Environment**
 ```bash
 # Fork and clone repository
-git clone https://github.com/<your-username>/petroleum-data-ai.git
+git clone https://github.com/Numba1ne/petroleum-data-ai.git
 cd petroleum-data-ai
 python -m venv venv
 source venv/bin/activate   # Linux/macOS

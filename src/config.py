@@ -49,14 +49,17 @@ SHEET_MONTHLY = "Monthly Production Data"
 # ---------------------------------------------------------------------------
 # Columns whose missing values are imputed with per-well rolling averages.
 # These are continuous sensor readings where interpolation makes physical sense.
+# Names must match the standardised column names produced by _standardise_columns().
+# Verified against actual Volve Excel output (2026-10-11).
 ROLLING_IMPUTE_COLS = [
-    "avg_downhole_pressure",
-    "avg_downhole_temperature",
-    "dp_choke_size",
-    "avg_ann_a_pressure",
-    "avg_ann_b_pressure",
-    "avg_choke_size_p",
-    "avg_wh_tubing_pressure",
+    "avg_downhole_pressure",    # downhole gauge pressure
+    "avg_downhole_temperature", # downhole temperature
+    "dp_choke_size",            # choke size differential pressure
+    "avg_choke_size_p",         # choke size (production)
+    "avg_annulus_press",        # annulus pressure
+    "avg_whp_p",                # wellhead pressure (production)
+    "avg_wht_p",                # wellhead temperature (production)
+    "avg_dp_tubing",            # tubing differential pressure
 ]
 ROLLING_WINDOW = 7       # days
 

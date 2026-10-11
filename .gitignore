@@ -9,8 +9,7 @@
 /data/raw/*.zip
 
 ### REPORTS ###
-# Generated reports are reproducible – do not commit them
-/reports/*.md
+# Ignore scratch / html exports
 /reports/*.html
 /reports/*.png
 
