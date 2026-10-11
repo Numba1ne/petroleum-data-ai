@@ -1,58 +1,106 @@
-import os
-import zipfile
+"""
+Download Volve production data from Kaggle.
+
+Authentication (pick ONE approach, in priority order):
+  1. kaggle.json   – place at ~/.kaggle/kaggle.json  (recommended)
+  2. Environment   – set KAGGLE_USERNAME and KAGGLE_KEY in your shell
+                     or in a .env file (never commit .env to git)
+
+Run:
+    python src/pipeline/download_kaggle_data.py
+    python src/pipeline/download_kaggle_data.py --dest data/raw
+"""
+
+import argparse
+import sys
 from pathlib import Path
-from kaggle.api.kaggle_api_extended import KaggleApi
 
-# Define paths
-base_dir = Path(__file__).resolve().parents[2]
-raw_dir = base_dir / 'data' / 'raw'
-raw_dir.mkdir(parents=True, exist_ok=True)
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+BASE_DIR = Path(__file__).resolve().parents[2]
+DEFAULT_DEST = BASE_DIR / "data" / "raw"
 
-# 1. Set environment variables for authentication - this is required
-os.environ['KAGGLE_USERNAME'] = 'emmanuelanthony100'
-os.environ['KAGGLE_KEY'] = 'KGAT_80731b199b31eab5e46a440ecd7670a6'
+DATASET_SLUG = "lamyalbert/volve-production-data"
+EXPECTED_FILE = "Volve production data.xlsx"
 
-api = KaggleApi()
-api.authenticate()  # Use the environment variables we just set
 
-try:
-    # Download dataset
-    print("Downloading Volve production data...")
-    api.dataset_download_files(
-        'lamyalbert/volve-production-data', 
-        path=str(raw_dir),
-        unzip=True
-    )
-    
-    # Verify download
-    excel_file = raw_dir / "Volve production data.xlsx"
+def _load_dotenv() -> None:
+    """Optionally load a .env file from the project root (python-dotenv)."""
+    env_path = BASE_DIR / ".env"
+    if env_path.exists():
+        try:
+            from dotenv import load_dotenv  # type: ignore
+            load_dotenv(env_path)
+        except ImportError:
+            # python-dotenv not installed – silently skip
+            pass
+
+
+def download(dest: Path) -> None:
+    """Authenticate with Kaggle and download the dataset to *dest*."""
+    dest.mkdir(parents=True, exist_ok=True)
+
+    # Load .env if present (adds KAGGLE_USERNAME / KAGGLE_KEY to env)
+    _load_dotenv()
+
+    try:
+        from kaggle.api.kaggle_api_extended import KaggleApi  # type: ignore
+    except ImportError:
+        print("[ERROR] kaggle package not found. Install it with: pip install kaggle")
+        sys.exit(1)
+
+    api = KaggleApi()
+
+    try:
+        api.authenticate()
+    except Exception as exc:
+        print(
+            "[ERROR] Kaggle authentication failed.\n"
+            "  Make sure one of the following is configured:\n"
+            "    • ~/.kaggle/kaggle.json  (recommended)\n"
+            "    • KAGGLE_USERNAME and KAGGLE_KEY environment variables\n"
+            "    • A .env file in the project root with those variables\n"
+            f"  Details: {exc}"
+        )
+        sys.exit(1)
+
+    print(f"Downloading dataset '{DATASET_SLUG}' → {dest} …")
+    try:
+        api.dataset_download_files(DATASET_SLUG, path=str(dest), unzip=True)
+    except Exception as exc:
+        print(f"[ERROR] Download failed: {exc}")
+        print(
+            f"  Check that you have accepted the dataset terms at:\n"
+            f"  https://www.kaggle.com/datasets/{DATASET_SLUG}"
+        )
+        sys.exit(1)
+
+    excel_file = dest / EXPECTED_FILE
     if excel_file.exists():
-        print(f"\nSuccess! File saved to: {excel_file}")
-        
-        # Additional files from zip
-        print("\nFiles extracted:")
-        items = list(raw_dir.glob('*'))
-        for item in items:
-            print(f"- {item.name}")
-        print("\nDownload complete.")
+        print(f"[OK] File saved to: {excel_file}")
+        print("\nExtracted files:")
+        for item in sorted(dest.glob("*")):
+            print(f"  - {item.name}")
     else:
-        print("\nError: File not found after download. Please check Kaggle dataset.")
-        print(f"Contents of {raw_dir}:")
-        items = list(raw_dir.glob('*'))
-        if items:
-            for item in items:
-                print(f"- {item.name}")
-        else:
-            print("Directory is empty")
+        print("[WARNING] Download completed but expected file not found:")
+        print(f"  Expected: {excel_file}")
+        print("  Found:")
+        for item in sorted(dest.glob("*")):
+            print(f"    - {item.name}")
 
-except Exception as e:
-    print(f"\nAn error occurred: {str(e)}")
-    print("\nPlease verify:")
-    print("1. Your Kaggle username and key are correct (set in code)")
-    print(f"2. You've accepted Kaggle's dataset terms: https://www.kaggle.com/datasets/lamyalbert/volve-production-data")
 
-# Securely clear credentials from memory
-os.environ.pop('KAGGLE_USERNAME', None)
-os.environ.pop('KAGGLE_KEY', None)
-del api
-print("Credentials securely cleared.")
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Download Volve production data from Kaggle.")
+    parser.add_argument(
+        "--dest",
+        type=Path,
+        default=DEFAULT_DEST,
+        help=f"Destination directory (default: {DEFAULT_DEST})",
+    )
+    args = parser.parse_args()
+    download(args.dest)
+
+
+if __name__ == "__main__":
+    main()

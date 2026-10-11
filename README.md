@@ -1,180 +1,242 @@
-# Volve Production Data Analysis Pipeline
+# Petroleum Data AI – Volve Production Pipeline
+
+> **Project 1 of 3 · Data Acquisition & Quality Foundation**
 
 ```mermaid
 graph TD
-    A[Kaggle Download] --> B(Raw Validation)
-    B --> C(Column Standardization)
-    C --> D(Metric Calculation)
-    D --> E(Missing Value Imputation)
-    E --> F[SQLite Storage]
-    F --> G[Reports Generation]
+    A[Kaggle Download] --> B[Raw Validation]
+    B --> C[Column Standardisation]
+    C --> D[Negative-Volume Clamping]
+    D --> E[Sensor Imputation]
+    E --> F[Derived Metrics]
+    F --> G[SQLite + CSV + Parquet]
+    G --> H[Data Quality Report]
 ```
 
 ## Overview
-This project provides an end-to-end pipeline for processing Volve oil field production data. It transforms raw Excel production reports into a standardized SQLite database with automated data quality validation and visualization-ready formats. Key features include:
 
-- Automated Kaggle API data acquisition
-- Production metric calculation (Water Cut, Gas-Oil Ratio)
-- Well-specific missing value imputation
-- Multi-format output (SQLite, CSV, Parquet)
-- Data quality reporting with key statistics
+An end-to-end ETL pipeline for the **Volve oil field** production dataset.
+Raw Excel production reports are transformed into a clean, query-ready SQLite
+database with automated data quality reporting.
 
-## Target Audience
-- Petroleum engineers analyzing production trends
-- Reservoir engineers evaluating well performance
-- Data scientists in energy sector
-- Academic researchers in petroleum engineering
-- Energy investment analysts
+**Key features:**
 
-## Prerequisites
-**Knowledge:**
-- Basic Python (Pandas, SQLAlchemy)
-- Petroleum engineering fundamentals
-- SQL query basics
+| Feature | Detail |
+|---|---|
+| Data source | Kaggle · `lamyalbert/volve-production-data` |
+| Granularity | Daily + Monthly production per well bore |
+| Outputs | SQLite, CSV, Parquet |
+| Derived metrics | Water cut, GOR, on-stream efficiency |
+| Well typing | Time-aware per-row PRODUCER / INJECTOR label |
+| QC report | Missing % by well, completeness timeline, outlier stats |
 
-**Hardware:**
-- 4GB RAM minimum
-- 500MB storage
+---
 
-**Software:**
-- Python 3.8+
-- SQLite 3.0+
+## Quick Start
 
-## Installation
+### 1 · Clone & install
+
 ```bash
-git clone https://github.com/your-username/petroleum-data-ai.git
+git clone https://github.com/Numba1ne/petroleum-data-ai.git
 cd petroleum-data-ai
 
-# Create virtual environment
-python -m venv venv
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+# Linux / macOS
+source .venv/bin/activate
 
-# Activate environment
-venv\Scripts\activate            # Windows
-source venv/bin/activate           # Linux/macOS
-
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-## Environment Setup
-1. Register at [Kaggle.com](https://www.kaggle.com)
-2. Create API token (kaggle.json)
-3. Place token in project root:
+### 2 · Configure Kaggle credentials
+
+> ⚠️ **Never put your API key in source code or commit it to git.**
+
+**Recommended – kaggle.json:**
+
+1. Go to [kaggle.com/settings](https://www.kaggle.com/settings) → *Create New Token*.
+2. Save the downloaded `kaggle.json` to `~/.kaggle/kaggle.json`.
+3. On Linux/macOS: `chmod 600 ~/.kaggle/kaggle.json`
+
+*Alternatively*, use a `.env` file:
+
 ```bash
-mv ~/Downloads/kaggle.json .
+cp .env.example .env
+# Edit .env and fill in KAGGLE_USERNAME and KAGGLE_KEY
 ```
-4. Download dataset:
+
+**One-time helper script** (writes `~/.kaggle/kaggle.json` for you):
+
+```bash
+python setup_kaggle.py --username <your_username> --key <your_api_key>
+```
+
+### 3 · Download the dataset
+
 ```bash
 python src/pipeline/download_kaggle_data.py
+# Optional: override destination
+python src/pipeline/download_kaggle_data.py --dest data/raw
 ```
 
-Verify file exists at `data/raw/Volve production data.xlsx`
+Verify the file landed at `data/raw/Volve production data.xlsx`.
 
-## Usage
-### Full Pipeline Execution
+### 4 · Run the pipeline
+
 ```bash
 python src/pipeline/clean_data.py
+# Optional: use a custom Excel path
+python src/pipeline/clean_data.py --input path/to/custom.xlsx
 ```
 
-### Output Validation
+### 5 · Verify outputs
+
 ```bash
 python verify_data.py
 ```
 
-### Sample Database Query
+Expected output:
+
+```
+── Volve Pipeline Verification ─────────────────────────────────────
+  [OK]  Raw Excel                   Volve production data.xlsx  (...)
+  [OK]  Daily CSV                   daily_production_clean.csv  (...)
+  [OK]  Daily Parquet               daily_production_clean.parquet  (...)
+  [OK]  Monthly CSV                 monthly_production_clean.csv  (...)
+  [OK]  Monthly Parquet             monthly_production_clean.parquet  (...)
+  [OK]  SQLite database             volve_production.db  (...)
+  [OK]  Data quality report         data_quality_report.md  (...)
+
+  Daily production rows:   23,367
+  Monthly production rows: ...
+
+  Result: 7 passed, 0 failed
+────────────────────────────────────────────────────────────────────
+```
+
+---
+
+## Project Structure
+
+```
+petroleum-data-ai/
+├── src/
+│   ├── config.py                    # Central paths & constants
+│   └── pipeline/
+│       ├── download_kaggle_data.py  # Kaggle API download
+│       └── clean_data.py            # ETL + QC report
+├── data/
+│   ├── raw/                         # Raw Excel (gitignored)
+│   ├── processed/                   # Cleaned CSV + Parquet (gitignored)
+│   └── db/                          # SQLite database (gitignored)
+├── reports/                         # Auto-generated QC report (gitignored)
+├── notebooks/                       # Exploratory analysis
+├── tests/                           # Unit tests
+├── dashboard/                       # Future: Dash / Streamlit app
+├── setup_kaggle.py                  # One-time credential helper
+├── verify_data.py                   # Pipeline output check
+├── requirements.txt
+├── .env.example                     # Credential template (safe to commit)
+└── .gitignore
+```
+
+---
+
+## Querying the Database
+
 ```python
 import pandas as pd
 from sqlalchemy import create_engine
 
 engine = create_engine("sqlite:///data/db/volve_production.db")
-prod_data = pd.read_sql("""
-    SELECT well_bore_code, AVG(water_cut) AS avg_water_cut
+
+# Average water cut per producer well
+df = pd.read_sql("""
+    SELECT well_bore_code,
+           ROUND(AVG(water_cut), 3)   AS avg_water_cut,
+           ROUND(AVG(gor), 1)         AS avg_gor,
+           COUNT(*)                   AS days
     FROM daily_production
     WHERE well_type = 'PRODUCER'
+      AND bore_oil_vol > 0
     GROUP BY well_bore_code
+    ORDER BY avg_water_cut DESC
 """, engine)
-print(prod_data.head())
+print(df)
 ```
 
-## Data Requirements
-- **Source**: [Volve Production Data](https://www.kaggle.com/datasets/lamyalbert/volve-production-data)
-- **Format**: Microsoft Excel (.xlsx)
-- **Sheets**: "Daily Production Data", "Monthly Production Data"
-- **Location**: `data/raw/Volve production data.xlsx`
+---
 
-## Testing
-### Pipeline Validation
-```bash
-python verify_data.py
+## Cleaning Logic
 
-# Expected output:
-[OK] Raw dataset located: data/raw/Volve production data.xlsx
-[OK] Production records: 23,367
-[OK] Database integrity verified
-```
+| Step | Daily | Monthly |
+|---|---|---|
+| Column normalisation | ✓ snake_case | ✓ snake_case |
+| Date parsing | ✓ | ✓ |
+| Negative volumes → NaN | ✓ reported in QC | ✓ |
+| Sensor imputation | rolling(7) → ffill → bfill per well | – |
+| Well type labelling | per-row time-aware | – |
+| Water cut / GOR | safe division (NaN on zero denom) | – |
+| On-stream efficiency | clipped to [0, 1] | – |
 
-### Unit Tests (Development)
+---
+
+## Data License
+
+The Volve dataset is published by **Equinor** under the
+[Equinor Open Data License](https://www.equinor.com/en/how-and-why/digitalisation-in-our-dna/volve-field-data-village-download.html).
+Please review the license terms before using this data in commercial projects.
+
+The Kaggle mirror used here: <https://www.kaggle.com/datasets/lamyalbert/volve-production-data>
+
+---
+
+## Prerequisites
+
+| Requirement | Version |
+|---|---|
+| Python | 3.10+ |
+| RAM | ≥ 4 GB |
+| Disk | ≥ 500 MB (raw Excel is ~40 MB) |
+
+---
+
+## Running Tests
+
 ```bash
 pytest tests/
 ```
 
-## Methodology
-### Data Processing Workflow
-1. **Column Standardization**:
-   - Snake_case conversion
-   - Special character removal
-```python
-.columns.str.lower().str.replace(r'[^a-z0-9_]', '', regex=True)
-```
-
-2. **Derived Metrics**:
-   - Water Cut = Water Volume / (Oil + Water)
-   - GOR = Gas Volume / Oil Volume
-
-3. **Missing Value Treatment**:
-   - Per-well forward filling
-   - Rolling average smoothing
-   - Zero substitution for production metrics
-
-## Performance
-| Operation | Records | Duration | Hardware |
-|-----------|---------|----------|----------|
-| Full ETL | 23,367 | 8.3s | i5-1135G7, 16GB RAM |
-| SQLite Export | 23,367 | 1.2s | NVMe SSD |
-| Water Cut Calculation | 23,367 | 0.4s | Pandas Vectorized |
-
-## License
-MIT License - see [LICENSE](https://github.com/your-username/petroleum-data-ai/blob/main/LICENSE)
+---
 
 ## Contributing
-1. Fork repository
-2. Create feature branch (`git checkout -b feature/water-cut-analysis`)
-3. Commit changes (`git commit -am 'Add water cut visualization'`)
-4. Push to branch (`git push origin feature/water-cut-analysis`)
-5. Open pull request
+
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature/your-feature`.
+3. Commit your changes: `git commit -am 'Add your feature'`.
+4. Push: `git push origin feature/your-feature`.
+5. Open a pull request.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards.
 
-## Changelog
-### v1.0.0 (Current)
-- Initial pipeline implementation
-- SQLite database integration
-- Data quality reporting
-- Kaggle API integration
+---
 
 ## Citation
+
 ```bibtex
 @software{Anthony_Petroleum_Data_AI_2026,
-  author = {Anthony, Emmanuel},
-  title = {{Petroleum Data AI Toolkit}},
-  url = {https://github.com/your-username/petroleum-data-ai},
-  version = {1.0.0},
-  year = {2026}
+  author  = {Anthony, Emmanuel},
+  title   = {{Petroleum Data AI Toolkit}},
+  url     = {https://github.com/Numba1ne/petroleum-data-ai},
+  version = {1.1.0},
+  year    = {2026}
 }
 ```
 
-## Contact
-[Email Support](mailto:petroleum-data-support@example.com) | 
-[Issue Tracker](https://github.com/your-username/petroleum-data-ai/issues)
+---
 
-**Project Maintainer:** Emmanuel Anthony
+## Contact
+
+[Issue Tracker](https://github.com/Numba1ne/petroleum-data-ai/issues) ·
+**Maintainer:** Emmanuel Anthony

@@ -1,7 +1,11 @@
-pandas
-openpyxl
-sqlalchemy
+pandas>=2.0
+openpyxl>=3.1
+sqlalchemy>=2.0
+numpy>=1.24
+pyarrow>=14.0
+kaggle>=1.6
+python-dotenv>=1.0
+tabulate>=0.9
 jupyter
 matplotlib
 seaborn
-kagglehub

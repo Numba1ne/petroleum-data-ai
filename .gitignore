@@ -3,15 +3,24 @@
 /data/processed/*
 /data/db/*
 
-# Preserve raw data structure but ignore files
+# Preserve raw data structure but ignore large files
 /data/raw/*.xlsx
 /data/raw/*.csv
+/data/raw/*.zip
+
+### REPORTS ###
+# Generated reports are reproducible – do not commit them
+/reports/*.md
+/reports/*.html
+/reports/*.png
 
 ### ENVIRONMENT ###
 .venv/
 env/
 venv/
+# .env contains secrets – NEVER commit it
 .env
+# .env.example should be committed (it has no real secrets)
 environment.yml
 
 ### PYTHON ###
@@ -19,6 +28,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.pycache
 
 ### NOTEBOOKS ###
 .ipynb_checkpoints/
@@ -34,9 +44,11 @@ __pycache__/
 *.log
 *.lock
 .DS_Store
+Thumbs.db
 
-### SENSITIVE ###
+### SENSITIVE – never commit these ###
 kaggle.json
 *.key
 *.pem
 secrets.ini
+*.secret

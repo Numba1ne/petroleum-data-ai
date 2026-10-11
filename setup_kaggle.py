@@ -1,25 +1,48 @@
-import os
+"""
+One-time helper: write ~/.kaggle/kaggle.json from CLI arguments.
+
+Usage:
+    python setup_kaggle.py --username <your_username> --key <your_api_key>
+
+Get your API key from: https://www.kaggle.com/settings → "Create New Token"
+The generated kaggle.json will be written to ~/.kaggle/kaggle.json.
+
+NOTE: Never put your real key in this script or commit it to git.
+"""
+
+import argparse
 import json
+import os
 from pathlib import Path
 
-# Configuring Kaggle API
-def setup_kaggle_api(username, api_key):
-    # Create .kaggle directory
+
+def setup_kaggle_api(username: str, api_key: str) -> None:
     kaggle_dir = Path.home() / ".kaggle"
     kaggle_dir.mkdir(exist_ok=True)
-    
-    # Create kaggle.json
+
+    config_path = kaggle_dir / "kaggle.json"
     config = {"username": username, "key": api_key}
-    with open(kaggle_dir / "kaggle.json", "w") as f:
+
+    with open(config_path, "w") as f:
         json.dump(config, f)
-    
-    # Set secure permissions (required on Linux/Mac, recommended on Windows)
+
+    # Restrict permissions on POSIX systems (Linux/macOS)
     if os.name != "nt":
-        os.chmod(kaggle_dir / "kaggle.json", 0o600)
-    
-    print(f"Kaggle API configured for user: {username}")
+        os.chmod(config_path, 0o600)
+
+    print(f"[OK] Kaggle credentials written to: {config_path}")
+    print("     You can now run: python src/pipeline/download_kaggle_data.py")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Write Kaggle API credentials to ~/.kaggle/kaggle.json"
+    )
+    parser.add_argument("--username", required=True, help="Your Kaggle username")
+    parser.add_argument("--key", required=True, help="Your Kaggle API key")
+    args = parser.parse_args()
+    setup_kaggle_api(args.username, args.key)
+
 
 if __name__ == "__main__":
-    username = "emmanuelanthony100"
-    api_key = "KGAT_80731b199b31eab5e46a440ecd7670a6"
-    setup_kaggle_api(username, api_key)
+    main()
