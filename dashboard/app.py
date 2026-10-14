@@ -1,4 +1,11 @@
+import sys
 from pathlib import Path
+
+# Ensure project root is on the path
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -448,3 +455,19 @@ with tab_rank:
         )
     else:
         st.info("No well data to rank.")
+
+# -------------------------------------------------
+# Export Filtered Data
+# -------------------------------------------------
+st.divider()
+st.subheader("Export")
+
+csv = filtered_df.to_csv(index=False).encode("utf-8")
+
+st.download_button(
+    label="Download filtered data as CSV",
+    data=csv,
+    file_name="volve_filtered_production.csv",
+    mime="text/csv",
+    help="Downloads the currently filtered daily production data",
+)

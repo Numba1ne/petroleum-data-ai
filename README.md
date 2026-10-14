@@ -1,6 +1,33 @@
-# Petroleum Data AI – Volve Production Pipeline
+# Petroleum Data AI – Volve Field Analytics
 
-> **Project 1 & 2 · Data Acquisition, Quality Foundation & Interactive Production Dashboard**
+### Projects completed so far  
+- ✅ **Project 1** – Data Pipeline & Quality Layer  
+- ✅ **Project 2** – Interactive Production Dashboard  
+- ⬜ **Project 3** – Production Forecasting & Decline Curve Analysis  
+
+End-to-end analytics toolkit for the Equinor Volve oil field, built progressively for learning and portfolio use.
+
+---
+
+## Project 2 – Interactive Dashboard
+
+Run the Streamlit dashboard:
+
+```bash
+streamlit run dashboard/app.py
+```
+
+**Features:**
+- Producer / Injector / All filter
+- Well multi-select + date range
+- KPI cards (Oil, Gas, Water, Water Injected, Water Cut, GOR)
+- Production & Injection charts
+- Water Cut & GOR diagnostic charts with reference lines
+- Well ranking table
+
+---
+
+## Project 1 – Pipeline Architecture
 
 ```mermaid
 graph TD
