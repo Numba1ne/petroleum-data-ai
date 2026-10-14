@@ -1,6 +1,6 @@
 # Petroleum Data AI – Volve Production Pipeline
 
-> **Project 1 of 3 · Data Acquisition & Quality Foundation**
+> **Project 1 & 2 · Data Acquisition, Quality Foundation & Interactive Production Dashboard**
 
 ```mermaid
 graph TD
@@ -115,6 +115,19 @@ Expected output:
 ────────────────────────────────────────────────────────────────────
 ```
 
+### 6 · Launch the Interactive Dashboard
+
+```bash
+streamlit run dashboard/app.py
+```
+
+Navigate to [http://localhost:8501](http://localhost:8501) in your browser:
+- **Field Overview KPIs**: Cumulative Oil, Gas, Water, and Water Injected, plus field Water Cut and average GOR.
+- **Role & Well Filtering**: Toggle between All Wells, Producers Only, or Injectors Only with dynamic well selection.
+- **Fluid Rate Visualisations**: Interactive Plotly time-series for oil, gas, water, and water injection rates.
+- **Reservoir Diagnostics**: Water cut evolution (%) with 50% and 80% breakthrough thresholds, and GOR history.
+- **Well Rankings**: Grouped bar charts, interactive leaderboard with formatted metrics, and CSV export.
+
 ---
 
 ## Project Structure
@@ -133,7 +146,9 @@ petroleum-data-ai/
 ├── reports/                         # Auto-generated QC report (gitignored)
 ├── notebooks/                       # Exploratory analysis
 ├── tests/                           # Unit tests
-├── dashboard/                       # Future: Dash / Streamlit app
+├── dashboard/
+│   ├── app.py                       # Streamlit interactive dashboard
+│   └── utils.py                     # Cached data loader & ranking analytics
 ├── setup_kaggle.py                  # One-time credential helper
 ├── verify_data.py                   # Pipeline output check
 ├── requirements.txt
