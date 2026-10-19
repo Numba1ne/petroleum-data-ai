@@ -14,6 +14,8 @@ import streamlit as st  # noqa: E402
 from dashboard.utils import compute_well_rankings, get_producer_wells, load_daily_production  # noqa: E402
 from forecasting.evaluate import evaluate_forecast  # noqa: E402
 from forecasting.forecast import forecast_well  # noqa: E402
+from anomaly_detection.pipeline import detect_well_anomalies  # noqa: E402
+from anomaly_detection.scoring import summarise_well_anomalies  # noqa: E402
 
 # -------------------------------------------------
 # Page config (must be first Streamlit command)
@@ -182,11 +184,12 @@ st.divider()
 # -------------------------------------------------
 # Visualization Tabs
 # -------------------------------------------------
-tab_prod, tab_diag, tab_rank, tab_forecast = st.tabs([
+tab_prod, tab_diag, tab_rank, tab_forecast, tab_anomaly = st.tabs([
     "📈 Production & Injection",
     "🧪 Diagnostics (Water Cut & GOR)",
     "🏆 Well Rankings & Breakdown",
     "🔮 Decline Curve & Forecast",
+    "🚨 Anomaly Detection",
 ])
 
 # -------------------------------------------------
@@ -586,6 +589,158 @@ with tab_forecast:
 
                 except Exception as e:
                     st.error(f"Forecast failed: {e}")
+
+
+# -------------------------------------------------
+# Tab 5: Anomaly Detection
+# -------------------------------------------------
+with tab_anomaly:
+    st.markdown("### Well Performance & Anomaly Detection")
+    st.caption(
+        "Statistical detectors (z-score, rate change, water-cut jump) "
+        "+ decline-curve residual anomalies."
+    )
+
+    # Controls
+    anomaly_wells = get_producer_wells()
+
+    col_a1, col_a2 = st.columns([2, 1])
+    with col_a1:
+        selected_anomaly_well = st.selectbox(
+            "Select Producer Well",
+            options=anomaly_wells,
+            index=anomaly_wells.index("NO 15/9-F-12 H")
+            if "NO 15/9-F-12 H" in anomaly_wells
+            else 0,
+            key="anomaly_well_select",
+        )
+    with col_a2:
+        include_residual = st.checkbox(
+            "Include decline residual anomalies", value=True
+        )
+
+    if st.button("Run Anomaly Detection", type="primary", key="run_anomaly"):
+        with st.spinner(f"Detecting anomalies for {selected_anomaly_well}..."):
+            try:
+                flags = detect_well_anomalies(
+                    selected_anomaly_well,
+                    include_residual=include_residual,
+                )
+                summary = summarise_well_anomalies(flags, selected_anomaly_well)
+
+                # --- Summary metrics ---
+                st.subheader("Anomaly Summary")
+                s1, s2, s3, s4 = st.columns(4)
+                s1.metric("Total Days", summary.get("total_days", 0))
+                s2.metric("Anomaly Days", summary.get("anomaly_days", 0))
+                s3.metric("Anomaly %", f"{summary.get('anomaly_pct', 0):.1f}%")
+                s4.metric("Max Score", f"{summary.get('max_score', 0):.1f}")
+
+                # Breakdown by detector
+                st.markdown("Detector Breakdown")
+                b1, b2, b3, b4 = st.columns(4)
+                b1.metric("Oil Z-Score", summary.get("oil_zscore_anomaly", 0))
+                b2.metric("Rate Change", summary.get("oil_rate_change_anomaly", 0))
+                b3.metric("Water Cut Jump", summary.get("water_cut_jump_anomaly", 0))
+                b4.metric(
+                    "Decline Residual",
+                    summary.get("decline_residual_anomaly", 0),
+                )
+
+                # --- Interactive chart ---
+                st.subheader("Oil Rate with Anomaly Markers")
+
+                fig = go.Figure()
+
+                # Oil rate line
+                fig.add_trace(
+                    go.Scatter(
+                        x=flags.index,
+                        y=flags["bore_oil_vol"],
+                        mode="lines",
+                        name="Oil Rate",
+                        line=dict(color="steelblue", width=1.5),
+                    )
+                )
+
+                # Anomaly points
+                anomaly_points = flags[flags["any_anomaly"]]
+                if not anomaly_points.empty:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=anomaly_points.index,
+                            y=anomaly_points["bore_oil_vol"],
+                            mode="markers",
+                            name="Anomaly",
+                            marker=dict(
+                                color="crimson",
+                                size=9,
+                                symbol="x",
+                                line=dict(width=1, color="darkred"),
+                            ),
+                        )
+                    )
+
+                fig.update_layout(
+                    title=f"{selected_anomaly_well} – Detected Anomalies",
+                    xaxis_title="Date",
+                    yaxis_title="Oil Rate (Sm³/day)",
+                    hovermode="x unified",
+                    template="plotly_white",
+                    height=480,
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1,
+                    ),
+                )
+                st.plotly_chart(fig, width="stretch")
+
+                # --- Detailed table ---
+                st.subheader("Anomaly Events")
+                show_cols = [
+                    c
+                    for c in [
+                        "bore_oil_vol",
+                        "water_cut",
+                        "gor",
+                        "oil_zscore_anomaly",
+                        "oil_rate_change_anomaly",
+                        "water_cut_jump_anomaly",
+                        "decline_residual_anomaly",
+                        "anomaly_score",
+                    ]
+                    if c in flags.columns
+                ]
+                anomaly_table = flags.loc[flags["any_anomaly"], show_cols].copy()
+                anomaly_table = anomaly_table.sort_index(ascending=False)
+
+                st.dataframe(
+                    anomaly_table.style.format(
+                        {
+                            "bore_oil_vol": "{:.1f}",
+                            "water_cut": "{:.1%}",
+                            "gor": "{:.1f}",
+                            "anomaly_score": "{:.1f}",
+                        },
+                        na_rep="–",
+                    ),
+                    width="stretch",
+                )
+
+                # Download
+                anomaly_csv = flags.reset_index().to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="Download full anomaly flags (CSV)",
+                    data=anomaly_csv,
+                    file_name=f"{selected_anomaly_well.replace('/', '').replace(' ', '')}_anomalies.csv",
+                    mime="text/csv",
+                )
+
+            except Exception as e:
+                st.error(f"Anomaly detection failed: {e}")
 
 
 # -------------------------------------------------
