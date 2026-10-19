@@ -18,10 +18,10 @@ try:
 except ImportError:
     pass
 
-# Defaults for OpenRouter + a free DeepSeek model. Override via env:
+# Defaults for OpenRouter + a free model. Override via env:
 #   LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "deepseek/deepseek-chat-v3.1:free"
+DEFAULT_MODEL = "liquid/lfm-2.5-2.6b:free"
 
 
 def _client():
@@ -118,12 +118,22 @@ def chat(
     tools = _tool_schemas()
 
     for _ in range(max_tool_rounds):
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            tools=tools,
-            tool_choice="auto",
-        )
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+            )
+        except Exception as e:
+            return f"Model call failed ({type(e).__name__}): {e}"
+
+        # Some free-tier providers return an error payload instead of choices
+        data = response.model_dump() if hasattr(response, "model_dump") else {}
+        if not response.choices:
+            err = (data.get("error") or {})
+            detail = err.get("message", "no choices returned")
+            return f"Model returned no answer ({detail}). Try again shortly."
         msg = response.choices[0].message
 
         # No tool calls → final answer
