@@ -16,6 +16,7 @@ from forecasting.evaluate import evaluate_forecast  # noqa: E402
 from forecasting.forecast import forecast_well  # noqa: E402
 from anomaly_detection.pipeline import detect_well_anomalies  # noqa: E402
 from anomaly_detection.scoring import summarise_well_anomalies  # noqa: E402
+from well_performance.scorecard import build_scorecard  # noqa: E402
 
 # -------------------------------------------------
 # Page config (must be first Streamlit command)
@@ -184,12 +185,13 @@ st.divider()
 # -------------------------------------------------
 # Visualization Tabs
 # -------------------------------------------------
-tab_prod, tab_diag, tab_rank, tab_forecast, tab_anomaly = st.tabs([
+tab_prod, tab_diag, tab_rank, tab_forecast, tab_anomaly, tab_score = st.tabs([
     "📈 Production & Injection",
     "🧪 Diagnostics (Water Cut & GOR)",
     "🏆 Well Rankings & Breakdown",
     "🔮 Decline Curve & Forecast",
     "🚨 Anomaly Detection",
+    "📋 Performance Scorecard",
 ])
 
 # -------------------------------------------------
@@ -741,6 +743,80 @@ with tab_anomaly:
 
             except Exception as e:
                 st.error(f"Anomaly detection failed: {e}")
+
+
+# -------------------------------------------------
+# Tab 6: Performance Scorecard
+# -------------------------------------------------
+with tab_score:
+    st.markdown("### Well Performance Scorecard")
+    st.caption(
+        "Composite ranking based on cumulative oil, recent rate, water cut, "
+        "anomaly burden, and decline-curve health."
+    )
+
+    # Let user choose which wells to score
+    score_wells = get_producer_wells()
+
+    selected_score_wells = st.multiselect(
+        "Select wells to score",
+        options=score_wells,
+        default=score_wells[:5] if len(score_wells) >= 5 else score_wells,
+        key="scorecard_wells",
+    )
+
+    if st.button("Build Scorecard", type="primary", key="run_scorecard"):
+        if not selected_score_wells:
+            st.warning("Please select at least one well.")
+        else:
+            with st.spinner("Computing performance scores..."):
+                try:
+                    scorecard = build_scorecard(wells=selected_score_wells, save=True)
+
+                    st.subheader("Ranked Wells")
+                    display_cols = [
+                        "rank", "well", "overall_score",
+                        "cum_oil", "recent_oil_rate",
+                        "recent_water_cut", "anomaly_pct", "decline_r2",
+                    ]
+                    display_cols = [c for c in display_cols if c in scorecard.columns]
+
+                    st.dataframe(
+                        scorecard[display_cols].style.format({
+                            "overall_score": "{:.1f}",
+                            "cum_oil": "{:,.0f}",
+                            "recent_oil_rate": "{:.1f}",
+                            "recent_water_cut": "{:.1%}",
+                            "anomaly_pct": "{:.1f}%",
+                            "decline_r2": "{:.3f}",
+                        }, na_rep="–"),
+                        width="stretch",
+                    )
+
+                    # Simple bar chart of overall scores
+                    fig = px.bar(
+                        scorecard,
+                        x="well",
+                        y="overall_score",
+                        color="overall_score",
+                        color_continuous_scale="RdYlGn",
+                        title="Overall Performance Score by Well",
+                        labels={"overall_score": "Score (0–100)", "well": "Well"},
+                    )
+                    fig.update_layout(xaxis_tickangle=-40, height=420)
+                    st.plotly_chart(fig, width="stretch")
+
+                    # Download
+                    score_csv = scorecard.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        label="Download scorecard (CSV)",
+                        data=score_csv,
+                        file_name="well_performance_scorecard.csv",
+                        mime="text/csv",
+                    )
+
+                except Exception as e:
+                    st.error(f"Scorecard failed: {e}")
 
 
 # -------------------------------------------------
