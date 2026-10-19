@@ -23,9 +23,20 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 def prepare_time_arrays(
     series: pd.DataFrame,
+    from_peak: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray, pd.Timestamp]:
-    """Convert a well series into t (days) and q (oil rate)."""
+    """
+    Convert a well series into t (days) and q (oil rate).
+    Optionally start from the peak production rate, skipping the ramp-up
+    period that would otherwise drag the decline fit down.
+    """
     series = series.sort_index()
+
+    if from_peak and len(series) > 10:
+        # Start from the peak oil rate
+        peak_idx = series["bore_oil_vol"].idxmax()
+        series = series.loc[peak_idx:].copy()
+
     start_date = series.index[0]
     t = (series.index - start_date).days.values.astype(float)
     q = series["bore_oil_vol"].values.astype(float)
@@ -81,7 +92,7 @@ def forecast_well(
     if len(series) < 30:
         return {"well": well, "error": "Insufficient data points (<30)"}
 
-    t_all, q_all, start_date = prepare_time_arrays(series)
+    t_all, q_all, start_date = prepare_time_arrays(series, from_peak=True)
 
     # Train / Test split
     split_idx = int(len(t_all) * train_frac)

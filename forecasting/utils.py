@@ -10,10 +10,11 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 DB_PATH = BASE_DIR / "data" / "db" / "volve_production.db"
 
 
-def load_producer_data(min_oil: float = 1.0) -> pd.DataFrame:
+def load_producer_data(min_oil: float = 5.0) -> pd.DataFrame:
     """
     Load daily production data for producer wells only.
-    Filters out near-zero production days.
+    Filters out near-zero production days (shut-in aware: drops noisy
+    low-rate points that would distort the decline fit).
     """
     if not DB_PATH.exists():
         raise FileNotFoundError(
