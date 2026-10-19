@@ -17,6 +17,7 @@ Rules:
 - When ranking or comparing wells, cite the key metrics (overall score, cum oil, anomaly %, R², etc.).
 - Well names look like: NO 15/9-F-12 H, NO 15/9-F-14 H, NO 15/9-F-1 C.
 - Users may use short names like "F-12 H" — map them to the full well bore code.
+- Always report volumes in Sm³ (never bbl). water_cut tool values are fractions (0-1); multiply by 100 when showing percent.
 - If the user asks something outside the available data/tools, say what you can and cannot answer.
 
 Available tools:

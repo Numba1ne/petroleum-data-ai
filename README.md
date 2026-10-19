@@ -1,11 +1,66 @@
 # Petroleum Data AI – Volve Field Analytics
 
-### Projects completed so far  
-- ✅ **Project 1** – Data Pipeline & Quality Layer  
-- ✅ **Project 2** – Interactive Production Dashboard  
-- ✅ **Project 3** – Production Forecasting & Decline Curve Analysis  
+End-to-end petroleum analytics toolkit built on the Equinor Volve field dataset.
+Progressive learning path from raw data → interactive dashboard → forecasting → anomaly detection → AI agent.
 
-End-to-end analytics toolkit for the Equinor Volve oil field, built progressively for learning and portfolio use.
+### Projects completed
+
+| # | Project | Status |
+|---|---------|--------|
+| 1 | Data Pipeline & Quality Layer | ✅ |
+| 2 | Interactive Production Dashboard | ✅ |
+| 3 | Decline Curve Forecasting (Arps) | ✅ |
+| 4 | Well Performance & Anomaly Detection | ✅ |
+| 5 | Well Performance Scorecard | ✅ |
+| 6 | AI Engineering Agent | ✅ |
+
+### Quick Start
+
+```bash
+git clone https://github.com/Numba1ne/petroleum-data-ai.git
+cd petroleum-data-ai
+
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+# Linux / macOS
+source .venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+**1. Configure credentials**
+
+- **Kaggle** (for data download): see `.env.example` or `setup_kaggle.py`
+- **LLM** (for AI assistant): get a free key at [openrouter.ai](https://openrouter.ai/settings/keys),
+  then set `LLM_API_KEY` in `.env` or your environment (see `.env.example`).
+  The default model is a free tier (`LLM_MODEL`); check
+  [openrouter.ai/models?max_price=0](https://openrouter.ai/models?max_price=0) for current options.
+
+**2. Run the data pipeline (Project 1)**
+
+```bash
+python src/pipeline/download_kaggle_data.py
+python src/pipeline/clean_data.py
+python verify_data.py
+```
+
+**3. Launch the dashboard (Projects 2–6)**
+
+```bash
+streamlit run dashboard/app.py
+```
+
+Open [http://localhost:8501](http://localhost:8501).
+
+Dashboard tabs:
+- 📈 Production & Injection charts
+- 🧪 Water Cut & GOR diagnostics
+- 🏆 Well rankings
+- 🔮 Decline curve forecasts
+- 🚨 Anomaly detection
+- 📋 Performance scorecard
+- 🤖 AI Assistant (natural-language Q&A)
 
 ---
 
@@ -187,6 +242,9 @@ Navigate to [http://localhost:8501](http://localhost:8501) in your browser:
 - **Reservoir Diagnostics**: Water cut evolution (%) with 50% and 80% breakthrough thresholds, and GOR history.
 - **Well Rankings**: Grouped bar charts, interactive leaderboard with formatted metrics, and CSV export.
 - **Decline Curve & Forecast**: Pick a producer well and horizon (90–730 days) to fit an Arps exponential/hyperbolic model; view parameters (qi, di, b, R²), test-set MAPE/RMSE, an interactive actual-vs-fit-vs-forecast chart, and download the forecast CSV.
+- **Anomaly Detection**: Statistical + decline-residual flags with severity scores, annotated timeline, event table, and CSV export.
+- **Performance Scorecard**: Composite 0–100 ranking on production, water cut, anomaly burden, and decline health.
+- **AI Assistant**: Natural-language Q&A over all of the above via OpenRouter tool-calling.
 
 ---
 
@@ -194,33 +252,39 @@ Navigate to [http://localhost:8501](http://localhost:8501) in your browser:
 
 ```
 petroleum-data-ai/
-├── src/
-│   ├── config.py                    # Central paths & constants
-│   └── pipeline/
-│       ├── download_kaggle_data.py  # Kaggle API download
-│       └── clean_data.py            # ETL + QC report
+├── src/pipeline/              # Project 1 – ETL & QC
+├── dashboard/                 # Projects 2–6 – Streamlit app (7 tabs)
+│   ├── app.py
+│   └── utils.py               # Cached data loader & ranking analytics
+├── forecasting/               # Project 3 – Arps decline curves
+│   ├── decline_curves.py      # Exponential / hyperbolic fits
+│   ├── forecast.py            # Per-well fit + future projection
+│   ├── evaluate.py            # R², MAPE, RMSE metrics
+│   ├── visualize.py           # Matplotlib forecast plots
+│   └── utils.py               # Producer data loader
+├── anomaly_detection/         # Project 4 – Detectors & scoring
+│   ├── detectors.py           # Z-score, rate change, WC jump, residuals
+│   ├── scoring.py             # Weighted scores + severity labels
+│   ├── pipeline.py            # End-to-end detection
+│   └── utils.py               # DB loader
+├── well_performance/          # Project 5 – Scorecard
+│   ├── scorecard.py           # Metrics + weighted ranking
+│   └── utils.py               # Producer data loader
+├── ai_agent/                  # Project 6 – Tools + LLM agent
+│   ├── tools.py               # Tool wrappers + TOOL_REGISTRY
+│   ├── prompts.py             # System prompt
+│   ├── agent.py               # OpenRouter tool-calling loop
+│   └── app.py                 # CLI (python -m ai_agent.app)
 ├── data/
-│   ├── raw/                         # Raw Excel (gitignored)
-│   ├── processed/                   # Cleaned CSV + Parquet (gitignored)
-│   │   └── forecasts/               # Per-well forecast CSVs (gitignored)
-│   └── db/                          # SQLite database (gitignored)
-├── reports/                         # QC report + forecast plots (only .md tracked)
-├── notebooks/                       # Exploratory analysis
-├── tests/                           # Unit tests
-├── dashboard/
-│   ├── app.py                       # Streamlit interactive dashboard
-│   └── utils.py                     # Cached data loader & ranking analytics
-├── forecasting/
-│   ├── decline_curves.py            # Arps exponential / hyperbolic fits
-│   ├── forecast.py                  # Per-well fit + future projection
-│   ├── evaluate.py                  # R², MAPE, RMSE metrics
-│   ├── visualize.py                 # Matplotlib forecast plots
-│   └── utils.py                     # Producer data loader
-├── setup_kaggle.py                  # One-time credential helper
-├── verify_data.py                   # Pipeline output check
+│   ├── raw/                   # Raw Excel (gitignored)
+│   ├── processed/             # Cleaned data + forecasts/anomalies/scorecard (gitignored)
+│   └── db/                    # SQLite database (gitignored)
+├── reports/                   # QC report + forecast plots (only .md tracked)
+├── notebooks/                 # Exploratory analysis
+├── tests/                     # Unit tests
 ├── requirements.txt
-├── .env.example                     # Credential template (safe to commit)
-└── .gitignore
+├── .env.example               # Credential template (safe to commit)
+└── README.md
 ```
 
 ---

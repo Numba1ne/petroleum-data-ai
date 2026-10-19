@@ -7,6 +7,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# Load .env early so LLM_API_KEY etc. are visible to the chat tab.
+# Guarded: the dashboard must run even if python-dotenv is missing.
+try:
+    from dotenv import load_dotenv  # noqa: E402
+    load_dotenv()
+except ImportError:
+    pass
+
 import plotly.express as px  # noqa: E402
 import plotly.graph_objects as go  # noqa: E402
 import streamlit as st  # noqa: E402
