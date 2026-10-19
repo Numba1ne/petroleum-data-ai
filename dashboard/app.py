@@ -185,13 +185,14 @@ st.divider()
 # -------------------------------------------------
 # Visualization Tabs
 # -------------------------------------------------
-tab_prod, tab_diag, tab_rank, tab_forecast, tab_anomaly, tab_score = st.tabs([
+tab_prod, tab_diag, tab_rank, tab_forecast, tab_anomaly, tab_score, tab_chat = st.tabs([
     "📈 Production & Injection",
     "🧪 Diagnostics (Water Cut & GOR)",
     "🏆 Well Rankings & Breakdown",
     "🔮 Decline Curve & Forecast",
     "🚨 Anomaly Detection",
     "📋 Performance Scorecard",
+    "🤖 AI Assistant",
 ])
 
 # -------------------------------------------------
@@ -817,6 +818,86 @@ with tab_score:
 
                 except Exception as e:
                     st.error(f"Scorecard failed: {e}")
+
+
+# -------------------------------------------------
+# Tab 7: AI Assistant
+# -------------------------------------------------
+with tab_chat:
+    st.markdown("### Volve Field AI Assistant")
+    st.caption(
+        "Ask questions about production, forecasts, anomalies, and well rankings. "
+        "The assistant uses your Project 1–4 tools."
+    )
+
+    # API key status (other tabs work regardless)
+    import os as _os
+
+    if not (_os.getenv("LLM_API_KEY") or _os.getenv("OPENAI_API_KEY")):
+        st.warning(
+            "No LLM API key found. Set LLM_API_KEY (OpenRouter) or OPENAI_API_KEY "
+            "in your environment or .env file to enable the AI assistant."
+        )
+
+    # Session state for chat history
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+    if "agent_history" not in st.session_state:
+        st.session_state.agent_history = []  # for multi-turn tool agent
+
+    # Sidebar-style tips inside the tab
+    with st.expander("Example questions", expanded=False):
+        st.markdown("""
+        List the producer wells
+        Summarise NO 15/9-F-12 H
+        Forecast oil for F-12 H for the next 180 days
+        Any anomalies on F-14 H?
+        Rank the main producers by performance
+        Which well has the highest water cut recently?
+        """)
+
+    # Render previous messages
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # Chat input
+    user_input = st.chat_input("Ask about Volve production, forecasts, anomalies...")
+
+    if user_input:
+        # Show user message
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        with st.chat_message("user"):
+            st.markdown(user_input)
+
+        # Call agent (default model from LLM_MODEL env — OpenRouter free tier)
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking & calling tools..."):
+                try:
+                    from ai_agent.agent import chat_with_history
+
+                    answer, updated_history = chat_with_history(
+                        user_input,
+                        history=st.session_state.agent_history,
+                    )
+                    st.session_state.agent_history = updated_history
+                    st.markdown(answer)
+                    st.session_state.chat_history.append(
+                        {"role": "assistant", "content": answer}
+                    )
+                except Exception as e:
+                    err = f"Agent error: {e}"
+                    st.error(err)
+                    st.session_state.chat_history.append(
+                        {"role": "assistant", "content": err}
+                    )
+
+    # Clear chat button
+    if st.session_state.chat_history:
+        if st.button("Clear chat", key="clear_chat"):
+            st.session_state.chat_history = []
+            st.session_state.agent_history = []
+            st.rerun()
 
 
 # -------------------------------------------------
