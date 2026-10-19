@@ -1,19 +1,19 @@
 import sys
 from pathlib import Path
 
-# Ensure project root is on the path
+# Ensure project root is on the path. Imports below intentionally come after
+# this bootstrap, hence `# noqa: E402` (Ruff "import not at top of file").
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-import streamlit as st
+import plotly.express as px  # noqa: E402
+import plotly.graph_objects as go  # noqa: E402
+import streamlit as st  # noqa: E402
 
-from dashboard.utils import compute_well_rankings, get_producer_wells, load_daily_production
-from forecasting.evaluate import evaluate_forecast
-from forecasting.forecast import forecast_well
+from dashboard.utils import compute_well_rankings, get_producer_wells, load_daily_production  # noqa: E402
+from forecasting.evaluate import evaluate_forecast  # noqa: E402
+from forecasting.forecast import forecast_well  # noqa: E402
 
 # -------------------------------------------------
 # Page config (must be first Streamlit command)
