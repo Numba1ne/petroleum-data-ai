@@ -12,3 +12,4 @@ seaborn
 streamlit
 plotly
 scipy>=1.10
+openai>=1.0
