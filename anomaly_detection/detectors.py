@@ -25,7 +25,7 @@ def rolling_zscore(
 def rate_change_detector(
     series: pd.Series,
     window: int = 7,
-    pct_threshold: float = 0.40,
+    pct_threshold: float = 0.60,  # raised from 0.40 — less noisy
 ) -> pd.Series:
     """
     Flag large percentage changes over a short window.
@@ -55,7 +55,7 @@ def combined_statistical_anomalies(
     z_window: int = 30,
     z_threshold: float = 3.0,
     rate_window: int = 7,
-    rate_pct: float = 0.40,
+    rate_pct: float = 0.60,  # match the new default
     wc_window: int = 14,
     wc_jump: float = 0.15,
 ) -> pd.DataFrame:

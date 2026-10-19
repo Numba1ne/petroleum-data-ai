@@ -11,7 +11,11 @@ from anomaly_detection.detectors import (
     combined_statistical_anomalies,
     decline_residual_anomalies,
 )
-from anomaly_detection.scoring import compute_anomaly_score, summarise_well_anomalies
+from anomaly_detection.scoring import (
+    assign_severity,
+    compute_anomaly_score,
+    summarise_well_anomalies,
+)
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = BASE_DIR / "data" / "processed" / "anomalies"
@@ -44,6 +48,7 @@ def detect_well_anomalies(
         )
 
     flags["anomaly_score"] = compute_anomaly_score(flags)
+    flags["severity"] = flags["anomaly_score"].apply(assign_severity)
 
     # Attach useful production columns for later analysis / dashboard
     flags["bore_oil_vol"] = well_df["bore_oil_vol"]

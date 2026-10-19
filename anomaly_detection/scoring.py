@@ -27,6 +27,19 @@ def compute_anomaly_score(flags: pd.DataFrame) -> pd.Series:
     return score
 
 
+def assign_severity(score: float) -> str:
+    """Simple severity buckets."""
+    if score >= 4.0:
+        return "Critical"
+    if score >= 2.5:
+        return "High"
+    if score >= 1.5:
+        return "Medium"
+    if score > 0:
+        return "Low"
+    return "None"
+
+
 def summarise_well_anomalies(flags: pd.DataFrame, well: str) -> Dict:
     """Create a short summary for one well."""
     total_days = len(flags)
@@ -47,5 +60,10 @@ def summarise_well_anomalies(flags: pd.DataFrame, well: str) -> Dict:
     if "anomaly_score" in flags.columns:
         summary["max_score"] = float(flags["anomaly_score"].max())
         summary["mean_score"] = float(flags["anomaly_score"].mean())
+
+    if "severity" in flags.columns:
+        sev_counts = flags.loc[flags["any_anomaly"], "severity"].value_counts()
+        for level in ["Critical", "High", "Medium", "Low"]:
+            summary[f"severity_{level.lower()}"] = int(sev_counts.get(level, 0))
 
     return summary
