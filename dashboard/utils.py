@@ -93,3 +93,12 @@ def compute_well_rankings(df: pd.DataFrame) -> pd.DataFrame:
             by="Cumulative Oil (Sm³)", ascending=False
         ).reset_index(drop=True)
     return rankings_df
+
+
+def get_producer_wells() -> list:
+    """Return a sorted list of producer well names."""
+    df = load_daily_production()
+    producers = (
+        df[df["well_type"] == "PRODUCER"]["well_bore_code"].dropna().unique()
+    )
+    return sorted(producers)

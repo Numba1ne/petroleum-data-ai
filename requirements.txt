@@ -11,3 +11,4 @@ matplotlib
 seaborn
 streamlit
 plotly
+scipy>=1.10

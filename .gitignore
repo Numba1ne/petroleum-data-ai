@@ -9,9 +9,9 @@
 /data/raw/*.zip
 
 ### REPORTS ###
-# Ignore scratch / html exports
-/reports/*.html
-/reports/*.png
+# Ignore scratch / html exports and generated plots (incl. subdirectories)
+/reports/**/*.html
+/reports/**/*.png
 
 ### ENVIRONMENT ###
 .venv/

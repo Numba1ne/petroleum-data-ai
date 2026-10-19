@@ -11,7 +11,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from dashboard.utils import compute_well_rankings, load_daily_production
+from dashboard.utils import compute_well_rankings, get_producer_wells, load_daily_production
+from forecasting.evaluate import evaluate_forecast
+from forecasting.forecast import forecast_well
 
 # -------------------------------------------------
 # Page config (must be first Streamlit command)
@@ -180,10 +182,11 @@ st.divider()
 # -------------------------------------------------
 # Visualization Tabs
 # -------------------------------------------------
-tab_prod, tab_diag, tab_rank = st.tabs([
+tab_prod, tab_diag, tab_rank, tab_forecast = st.tabs([
     "📈 Production & Injection",
     "🧪 Diagnostics (Water Cut & GOR)",
     "🏆 Well Rankings & Breakdown",
+    "🔮 Decline Curve & Forecast",
 ])
 
 # -------------------------------------------------
@@ -455,6 +458,135 @@ with tab_rank:
         )
     else:
         st.info("No well data to rank.")
+
+# -------------------------------------------------
+# Tab 4: Decline Curve & Forecast
+# -------------------------------------------------
+with tab_forecast:
+    st.markdown("### Decline Curve Analysis & Production Forecast")
+    st.caption("Arps Exponential / Hyperbolic models fitted on historical oil rates.")
+
+    producer_wells = get_producer_wells()
+
+    if not producer_wells:
+        st.info("No producer wells available in the dataset.")
+    else:
+        # Controls
+        col_f1, col_f2 = st.columns([2, 1])
+
+        with col_f1:
+            default_well = (
+                "NO 15/9-F-12 H" if "NO 15/9-F-12 H" in producer_wells else producer_wells[0]
+            )
+            selected_forecast_well = st.selectbox(
+                "Select Producer Well",
+                options=producer_wells,
+                index=producer_wells.index(default_well),
+            )
+
+        with col_f2:
+            forecast_horizon = st.slider(
+                "Forecast Horizon (days)",
+                min_value=90,
+                max_value=730,
+                value=365,
+                step=30,
+            )
+
+        if st.button("Run Forecast", type="primary"):
+            with st.spinner(f"Fitting decline curve for {selected_forecast_well}..."):
+                try:
+                    result = forecast_well(
+                        selected_forecast_well,
+                        forecast_days=forecast_horizon,
+                        train_frac=0.8,
+                    )
+                    metrics = evaluate_forecast(result)
+
+                    if "error" in result:
+                        st.error(result["error"])
+                    else:
+                        # --- Parameter cards ---
+                        st.subheader("Model Parameters")
+                        m1, m2, m3, m4 = st.columns(4)
+                        m1.metric("Model", result["model"].title())
+                        m2.metric("Initial Rate qi", f"{result['qi']:,.0f} Sm³/d")
+                        m3.metric("Decline di", f"{result['di']:.6f} /day")
+                        m4.metric("Train R²", f"{result['r2_train']:.3f}")
+
+                        if result["b"] is not None:
+                            st.caption(f"Hyperbolic exponent b = {result['b']:.3f}")
+
+                        # --- Evaluation metrics ---
+                        st.subheader("Test Set Performance")
+                        e1, e2, e3 = st.columns(3)
+                        e1.metric("MAPE (Test)", f"{metrics.get('mape_test', float('nan')):.1f} %")
+                        e2.metric("RMSE (Test)", f"{metrics.get('rmse_test', float('nan')):,.1f} Sm³/d")
+                        e3.metric("Test Points", metrics.get("n_test", 0))
+
+                        # --- Interactive Plotly chart ---
+                        st.subheader("Actual vs Model Fit + Forecast")
+                        fdf = result["forecast_df"]
+
+                        fig = go.Figure()
+
+                        hist = fdf[fdf["segment"] == "history"]
+                        fig.add_trace(go.Scatter(
+                            x=hist["date"],
+                            y=hist["actual_oil"],
+                            mode="markers",
+                            name="Actual",
+                            marker=dict(size=5, opacity=0.5, color="steelblue"),
+                        ))
+
+                        fig.add_trace(go.Scatter(
+                            x=hist["date"],
+                            y=hist["predicted_oil"],
+                            mode="lines",
+                            name=f"Fit ({result['model']})",
+                            line=dict(color="darkorange", width=2),
+                        ))
+
+                        fut = fdf[fdf["segment"] == "forecast"]
+                        fig.add_trace(go.Scatter(
+                            x=fut["date"],
+                            y=fut["predicted_oil"],
+                            mode="lines",
+                            name="Forecast",
+                            line=dict(color="crimson", width=2, dash="dash"),
+                        ))
+
+                        fig.update_layout(
+                            title=f"{selected_forecast_well} – Decline Curve Forecast",
+                            xaxis_title="Date",
+                            yaxis_title="Oil Rate (Sm³/day)",
+                            hovermode="x unified",
+                            template="plotly_white",
+                            legend=dict(
+                                orientation="h",
+                                yanchor="bottom",
+                                y=1.02,
+                                xanchor="right",
+                                x=1,
+                            ),
+                            height=500,
+                        )
+                        st.plotly_chart(fig, width="stretch")
+
+                        # Download button for this forecast
+                        forecast_csv = fdf.to_csv(index=False).encode("utf-8")
+                        st.download_button(
+                            label="Download this forecast (CSV)",
+                            data=forecast_csv,
+                            file_name=(
+                                f"{selected_forecast_well.replace('/', '').replace(' ', '')}_forecast.csv"
+                            ),
+                            mime="text/csv",
+                        )
+
+                except Exception as e:
+                    st.error(f"Forecast failed: {e}")
+
 
 # -------------------------------------------------
 # Export Filtered Data

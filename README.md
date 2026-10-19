@@ -3,7 +3,7 @@
 ### Projects completed so far  
 - ✅ **Project 1** – Data Pipeline & Quality Layer  
 - ✅ **Project 2** – Interactive Production Dashboard  
-- ⬜ **Project 3** – Production Forecasting & Decline Curve Analysis  
+- ✅ **Project 3** – Production Forecasting & Decline Curve Analysis  
 
 End-to-end analytics toolkit for the Equinor Volve oil field, built progressively for learning and portfolio use.
 
@@ -24,6 +24,38 @@ streamlit run dashboard/app.py
 - Production & Injection charts
 - Water Cut & GOR diagnostic charts with reference lines
 - Well ranking table
+- 🔮 Decline-curve forecast tab (Arps models) with adjustable horizon
+
+---
+
+## Project 3 – Production Forecasting & Decline Curve Analysis
+
+Fit Arps decline curves to each producer well's oil rate history, back-test on a
+held-out period, and project future production.
+
+**Models** (`forecasting/decline_curves.py`):
+- Exponential — `q(t) = qi · exp(-di·t)`
+- Hyperbolic — `q(t) = qi / (1 + b·di·t)^(1/b)`
+
+Both are fit with `scipy.optimize.curve_fit`; the model with the higher R² is selected.
+
+**Run it** (from the repo root, after the Project 1 pipeline):
+
+```python
+from forecasting.forecast import run_all_wells
+from forecasting.evaluate import summarise_results
+from forecasting.visualize import plot_multiple_wells
+
+results = run_all_wells(forecast_days=365)   # fits every producer well
+summary = summarise_results(results)          # R², MAPE, RMSE per well
+print(summary)
+plot_multiple_wells(results)                  # saves PNGs to reports/forecast_plots/
+```
+
+**Outputs:**
+- Per-well forecasts → `data/processed/forecasts/<well>_forecast.csv`
+- Forecast plots → `reports/forecast_plots/<well>_forecast.png`
+- Metrics: train R², test MAPE, test RMSE (`forecasting/evaluate.py`)
 
 ---
 
@@ -126,20 +158,20 @@ python verify_data.py
 Expected output:
 
 ```
-── Volve Pipeline Verification ─────────────────────────────────────
-  [OK]  Raw Excel                   Volve production data.xlsx  (...)
-  [OK]  Daily CSV                   daily_production_clean.csv  (...)
-  [OK]  Daily Parquet               daily_production_clean.parquet  (...)
-  [OK]  Monthly CSV                 monthly_production_clean.csv  (...)
-  [OK]  Monthly Parquet             monthly_production_clean.parquet  (...)
-  [OK]  SQLite database             volve_production.db  (...)
-  [OK]  Data quality report         data_quality_report.md  (...)
+================== Volve Pipeline Verification ==================
+  [OK]  Raw Excel                  Volve production data.xlsx  (... KB)
+  [OK]  Daily CSV                  daily_production_clean.csv  (... KB)
+  [OK]  Daily Parquet              daily_production_clean.parquet  (... KB)
+  [OK]  Monthly CSV                monthly_production_clean.csv  (... KB)
+  [OK]  Monthly Parquet            monthly_production_clean.parquet  (... KB)
+  [OK]  SQLite database            volve_production.db  (... KB)
+  [OK]  Data quality report        data_quality_report.md  (... KB)
 
-  Daily production rows:   23,367
-  Monthly production rows: ...
+  Daily production rows:   15,634
+  Monthly production rows: 526
 
   Result: 7 passed, 0 failed
-────────────────────────────────────────────────────────────────────
+=================================================================
 ```
 
 ### 6 · Launch the Interactive Dashboard
@@ -154,6 +186,7 @@ Navigate to [http://localhost:8501](http://localhost:8501) in your browser:
 - **Fluid Rate Visualisations**: Interactive Plotly time-series for oil, gas, water, and water injection rates.
 - **Reservoir Diagnostics**: Water cut evolution (%) with 50% and 80% breakthrough thresholds, and GOR history.
 - **Well Rankings**: Grouped bar charts, interactive leaderboard with formatted metrics, and CSV export.
+- **Decline Curve & Forecast**: Pick a producer well and horizon (90–730 days) to fit an Arps exponential/hyperbolic model; view parameters (qi, di, b, R²), test-set MAPE/RMSE, an interactive actual-vs-fit-vs-forecast chart, and download the forecast CSV.
 
 ---
 
@@ -169,13 +202,20 @@ petroleum-data-ai/
 ├── data/
 │   ├── raw/                         # Raw Excel (gitignored)
 │   ├── processed/                   # Cleaned CSV + Parquet (gitignored)
+│   │   └── forecasts/               # Per-well forecast CSVs (gitignored)
 │   └── db/                          # SQLite database (gitignored)
-├── reports/                         # Auto-generated QC report (gitignored)
+├── reports/                         # QC report + forecast plots (only .md tracked)
 ├── notebooks/                       # Exploratory analysis
 ├── tests/                           # Unit tests
 ├── dashboard/
 │   ├── app.py                       # Streamlit interactive dashboard
 │   └── utils.py                     # Cached data loader & ranking analytics
+├── forecasting/
+│   ├── decline_curves.py            # Arps exponential / hyperbolic fits
+│   ├── forecast.py                  # Per-well fit + future projection
+│   ├── evaluate.py                  # R², MAPE, RMSE metrics
+│   ├── visualize.py                 # Matplotlib forecast plots
+│   └── utils.py                     # Producer data loader
 ├── setup_kaggle.py                  # One-time credential helper
 ├── verify_data.py                   # Pipeline output check
 ├── requirements.txt

@@ -5,33 +5,64 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build:
+  test:
+    # Fast, data-independent checks. The raw Kaggle dataset is gitignored and
+    # not available here, so data-dependent tests skip automatically.
     runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: [ "3.10", "3.11" ]
 
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
       with:
-        python-version: 3.10
-    
+        python-version: ${{ matrix.python-version }}
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        
-    - name: Run data pipeline
+        pip install pytest
+
+    - name: Byte-compile source
+      run: python -m compileall -q src dashboard forecasting verify_data.py setup_kaggle.py
+
+    - name: Run unit tests
+      run: pytest -v tests/
+
+  data-pipeline:
+    # Manual, end-to-end run. Requires repo secrets KAGGLE_USERNAME and
+    # KAGGLE_KEY (Settings -> Secrets and variables -> Actions).
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+
+    - name: Install dependencies
       run: |
-        python src/pipeline/download_kaggle_data.py
-        python src/pipeline/clean_data.py
-        
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Download Kaggle data
+      env:
+        KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+        KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+      run: python src/pipeline/download_kaggle_data.py
+
+    - name: Run data pipeline
+      run: python src/pipeline/clean_data.py
+
     - name: Verify data outputs
       run: python verify_data.py
-        
-    - name: Run unit tests
-      run: |
-        pip install pytest
-        pytest -v tests/
