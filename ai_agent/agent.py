@@ -18,10 +18,20 @@ try:
 except ImportError:
     pass
 
-# Defaults for OpenRouter + a free model. Override via env:
+# Defaults for OpenRouter. Override via env:
 #   LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
+# gpt-4o-mini costs ~$0.15/M input, $0.60/M output on OpenRouter — negligible
+# for this workload, and far more reliable for tool-calling than the free tier.
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "liquid/lfm-2.5-2.6b:free"
+DEFAULT_MODEL = "openai/gpt-4o-mini"
+
+# Tried in order when the primary model errors (rate limit, provider outage).
+# Mix of cheap-paid and free so something is always available.
+FALLBACK_MODELS = [
+    "openai/gpt-4.1-mini",
+    "openai/gpt-4o-mini",
+    "liquid/lfm-2.5-2.6b:free",
+]
 
 
 def _client():
@@ -97,48 +107,47 @@ def _execute_tool(name: str, arguments: Dict[str, Any]) -> str:
         return json.dumps({"error": str(e)})
 
 
-def chat(
-    user_message: str,
-    history: Optional[List[Dict]] = None,
-    model: Optional[str] = None,
-    max_tool_rounds: int = 5,
+def _model_chain(primary: str) -> List[str]:
+    """Primary model first, then fallbacks (no duplicates)."""
+    chain = [primary]
+    for m in FALLBACK_MODELS:
+        if m not in chain:
+            chain.append(m)
+    return chain
+
+
+def _run_turns(
+    client,
+    active_model: str,
+    messages: List[Dict],
+    tools: List[Dict],
+    max_tool_rounds: int,
+    fallback_note: str = "",
 ) -> str:
-    """
-    Send a user message, let the model call tools as needed, return final answer.
-    """
-    client = _client()
-    model = model or _model_name()
-    messages: List[Dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
-
-    if history:
-        messages.extend(history)
-
-    messages.append({"role": "user", "content": user_message})
-
-    tools = _tool_schemas()
-
+    """Run the tool-calling loop for one model. Raises on provider failure."""
     for _ in range(max_tool_rounds):
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                tools=tools,
-                tool_choice="auto",
-            )
-        except Exception as e:
-            return f"Model call failed ({type(e).__name__}): {e}"
+        response = client.chat.completions.create(
+            model=active_model,
+            messages=messages,
+            tools=tools,
+            tool_choice="auto",
+        )
 
-        # Some free-tier providers return an error payload instead of choices
+        # Some providers return an error payload instead of choices
         data = response.model_dump() if hasattr(response, "model_dump") else {}
         if not response.choices:
             err = (data.get("error") or {})
             detail = err.get("message", "no choices returned")
-            return f"Model returned no answer ({detail}). Try again shortly."
+            raise RuntimeError(detail)
+
         msg = response.choices[0].message
 
         # No tool calls → final answer
         if not msg.tool_calls:
-            return msg.content or ""
+            answer = msg.content or ""
+            if fallback_note:
+                answer = f"_{fallback_note}_\n\n{answer}"
+            return answer
 
         # Append assistant message with tool calls
         messages.append(
@@ -175,9 +184,60 @@ def chat(
                 }
             )
 
-    return (
-        "Sorry — I reached the tool-call limit without a final answer. "
+    raise RuntimeError(
+        "Reached the tool-call limit without a final answer. "
         "Please try a simpler question."
+    )
+
+
+def chat(
+    user_message: str,
+    history: Optional[List[Dict]] = None,
+    model: Optional[str] = None,
+    max_tool_rounds: int = 5,
+) -> str:
+    """
+    Send a user message, let the model call tools as needed, return final answer.
+    Falls back to alternate models if the primary one is unavailable.
+    """
+    client = _client()
+    primary = model or _model_name()
+    models = _model_chain(primary)
+
+    messages: List[Dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+    if history:
+        messages.extend(history)
+
+    messages.append({"role": "user", "content": user_message})
+
+    tools = _tool_schemas()
+
+    last_error = ""
+
+    for attempt, active_model in enumerate(models):
+        note = ""
+        if attempt > 0:
+            note = (
+                f"Using fallback model {active_model} after "
+                f"{models[attempt - 1]} was unavailable."
+            )
+
+        try:
+            return _run_turns(
+                client,
+                active_model,
+                messages,
+                tools,
+                max_tool_rounds,
+                fallback_note=note,
+            )
+        except Exception as e:
+            last_error = f"{type(e).__name__}: {e}"
+            continue
+
+    return (
+        f"All models failed. Last error — {last_error}. Please try again shortly."
     )
 
 
